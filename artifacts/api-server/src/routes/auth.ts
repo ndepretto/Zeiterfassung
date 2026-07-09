@@ -17,7 +17,15 @@ router.post("/auth/login", (req, res): void => {
   }
 
   (req.session as any).authenticated = true;
-  res.json({ ok: true });
+  // Explicitly save the session before responding so it's in the store
+  // before the next request arrives (important with async/remote stores).
+  req.session.save((err) => {
+    if (err) {
+      res.status(500).json({ error: "Session konnte nicht gespeichert werden" });
+      return;
+    }
+    res.json({ ok: true });
+  });
 });
 
 router.post("/auth/logout", (req, res): void => {
@@ -27,6 +35,8 @@ router.post("/auth/logout", (req, res): void => {
 });
 
 router.get("/auth/me", (req, res): void => {
+  // Must not be cached — the session state can change at any time.
+  res.set("Cache-Control", "no-store");
   const authenticated = (req.session as any).authenticated === true;
   res.json({ authenticated });
 });

@@ -1,9 +1,11 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { pool } from "@workspace/db";
 
 const app: Express = express();
 
@@ -27,38 +29,42 @@ app.use(
   }),
 );
 
-// Restrict CORS to known origins only (Replit dev domain + localhost).
-// In production the frontend is served from the same origin, so CORS isn't
-// needed at all — the allowlist is still kept narrow for safety.
-const allowedOrigins = new Set<string>(
-  [
-    process.env["REPLIT_DEV_DOMAIN"]
-      ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
-      : null,
-    "http://localhost:3000",
-    "http://localhost:5173",
-  ].filter(Boolean) as string[],
-);
-
 app.use(
   cors({
     origin: (origin, callback) => {
       // Same-origin requests (no Origin header) are always allowed.
       if (!origin) return callback(null, true);
-      if (allowedOrigins.has(origin)) return callback(null, true);
+      // Allow any Replit hosted domain (dev previews + deployed apps) and localhost.
+      if (
+        origin.endsWith(".replit.dev") ||
+        origin.endsWith(".replit.app") ||
+        origin.startsWith("http://localhost:")
+      ) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS: origin '${origin}' not allowed`));
     },
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const sessionSecret = process.env["SESSION_SECRET"];
 if (!sessionSecret) throw new Error("SESSION_SECRET is required");
 
+// Use PostgreSQL as session store so sessions survive server restarts
+// and work across multiple instances in the deployed environment.
+const PgSession = connectPgSimple(session);
+
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "sessions",
+      createTableIfMissing: true,
+    }),
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,

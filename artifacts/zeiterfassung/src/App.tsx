@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -12,8 +12,6 @@ import { EmployeeDetail } from '@/pages/EmployeeDetail';
 import { TimeEntry } from '@/pages/TimeEntry';
 import { Reports } from '@/pages/Reports';
 import { Login } from '@/pages/Login';
-
-const queryClient = new QueryClient();
 
 function Router({ onLogout }: { onLogout: () => void }) {
   return (
@@ -33,7 +31,52 @@ function Router({ onLogout }: { onLogout: () => void }) {
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 
+  // queryClientRef must be declared before any function that references it.
+  const queryClientRef = useRef<QueryClient | null>(null);
+
+  if (!queryClientRef.current) {
+    queryClientRef.current = new QueryClient({
+      defaultOptions: {
+        queries: {
+          // On 401, immediately mark the user as unauthenticated.
+          // This handles stale sessions (e.g. after a server restart loses MemoryStore).
+          retry: (failureCount, error: any) => {
+            if (error?.status === 401) return false;
+            return failureCount < 2;
+          },
+        },
+      },
+    });
+  }
+  const queryClient = queryClientRef.current;
+
+  const goUnauthenticated = () => {
+    queryClient.clear();
+    setAuthState('unauthenticated');
+  };
+
+  // Wire up global 401 detection via query cache observer.
+  // We use onError at the QueryClient level to also catch mutations.
   useEffect(() => {
+    const client = queryClient;
+    const unsubscribe = client.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.query.state.error) {
+        const err = event.query.state.error as any;
+        if (err?.status === 401) goUnauthenticated();
+      }
+    });
+    const mutUnsubscribe = client.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.mutation?.state.error) {
+        const err = event.mutation.state.error as any;
+        if (err?.status === 401) goUnauthenticated();
+      }
+    });
+    return () => { unsubscribe(); mutUnsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Cache-Control: no-store is set server-side so this always reflects reality.
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.json())
       .then(data => setAuthState(data.authenticated ? 'authenticated' : 'unauthenticated'))
