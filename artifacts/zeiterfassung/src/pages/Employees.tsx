@@ -1,19 +1,24 @@
 import { useState } from "react";
-import { useListEmployees, useCreateEmployee, useDeleteEmployee, getListEmployeesQueryKey } from "@workspace/api-client-react";
+import {
+  useListEmployees,
+  useCreateEmployee,
+  useUpdateEmployee,
+  useDeleteEmployee,
+  getListEmployeesQueryKey,
+} from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarRange, MoreHorizontal, Plus, Trash2, UserPlus } from "lucide-react";
+import { CalendarRange, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -28,48 +33,138 @@ const employeeSchema = z.object({
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
+interface EditTarget {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  pensum: number;
+  annualHours: number;
+}
+
+function EmployeeForm({
+  form,
+  onSubmit,
+  onCancel,
+  isPending,
+  submitLabel,
+}: {
+  form: ReturnType<typeof useForm<EmployeeFormValues>>;
+  onSubmit: (data: EmployeeFormValues) => void;
+  onCancel: () => void;
+  isPending: boolean;
+  submitLabel: string;
+}) {
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField control={form.control} name="firstName" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Vorname</FormLabel>
+              <FormControl><Input placeholder="Max" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="lastName" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Nachname</FormLabel>
+              <FormControl><Input placeholder="Mustermann" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+        <FormField control={form.control} name="email" render={({ field }) => (
+          <FormItem>
+            <FormLabel>E-Mail (optional)</FormLabel>
+            <FormControl><Input placeholder="max@beispiel.ch" {...field} /></FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField control={form.control} name="pensum" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Pensum (%)</FormLabel>
+              <FormControl><Input type="number" min="0" max="100" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="annualHours" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Jahressoll (Stunden)</FormLabel>
+              <FormControl><Input type="number" min="0" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+        <DialogFooter className="mt-6">
+          <Button type="button" variant="outline" onClick={onCancel}>Abbrechen</Button>
+          <Button type="submit" disabled={isPending}>{isPending ? "Speichert…" : submitLabel}</Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
+
 export function Employees() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data: employees, isLoading } = useListEmployees({ query: { queryKey: getListEmployeesQueryKey() } });
-  
+
   const createMutation = useCreateEmployee();
+  const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
 
-  const form = useForm<EmployeeFormValues>({
+  const createForm = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      pensum: 100,
-      annualHours: 2080,
-    },
+    defaultValues: { firstName: "", lastName: "", email: "", pensum: 100, annualHours: 2080 },
   });
 
-  const onSubmit = (data: EmployeeFormValues) => {
+  const editForm = useForm<EmployeeFormValues>({
+    resolver: zodResolver(employeeSchema),
+  });
+
+  const openEdit = (emp: EditTarget) => {
+    setEditTarget(emp);
+    editForm.reset({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email ?? "",
+      pensum: emp.pensum,
+      annualHours: emp.annualHours,
+    });
+  };
+
+  const onCreate = (data: EmployeeFormValues) => {
     createMutation.mutate(
       { data },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
           setCreateOpen(false);
-          form.reset();
-          toast({
-            title: "Mitarbeiter erstellt",
-            description: "Der neue Mitarbeiter wurde erfolgreich hinzugefügt.",
-          });
+          createForm.reset();
+          toast({ title: "Mitarbeiter erstellt", description: "Der neue Mitarbeiter wurde erfolgreich hinzugefügt." });
         },
-        onError: () => {
-          toast({
-            title: "Fehler",
-            description: "Mitarbeiter konnte nicht erstellt werden.",
-            variant: "destructive",
-          });
-        }
+        onError: () => toast({ title: "Fehler", description: "Mitarbeiter konnte nicht erstellt werden.", variant: "destructive" }),
+      }
+    );
+  };
+
+  const onEdit = (data: EmployeeFormValues) => {
+    if (!editTarget) return;
+    updateMutation.mutate(
+      { id: editTarget.id, data },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+          setEditTarget(null);
+          toast({ title: "Gespeichert", description: "Die Änderungen wurden übernommen." });
+        },
+        onError: () => toast({ title: "Fehler", description: "Änderungen konnten nicht gespeichert werden.", variant: "destructive" }),
       }
     );
   };
@@ -82,18 +177,9 @@ export function Employees() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
           setDeleteId(null);
-          toast({
-            title: "Mitarbeiter gelöscht",
-            description: "Der Mitarbeiter wurde erfolgreich entfernt.",
-          });
+          toast({ title: "Mitarbeiter gelöscht", description: "Der Mitarbeiter wurde erfolgreich entfernt." });
         },
-        onError: () => {
-          toast({
-            title: "Fehler",
-            description: "Mitarbeiter konnte nicht gelöscht werden.",
-            variant: "destructive",
-          });
-        }
+        onError: () => toast({ title: "Fehler", description: "Mitarbeiter konnte nicht gelöscht werden.", variant: "destructive" }),
       }
     );
   };
@@ -103,104 +189,26 @@ export function Employees() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Mitarbeiter</h1>
-          <p className="text-muted-foreground text-sm">
-            Verwalten Sie Ihr Team, Pensen und Jahresstunden.
-          </p>
+          <p className="text-muted-foreground text-sm">Verwalten Sie Ihr Team, Pensen und Jahresstunden.</p>
         </div>
 
+        {/* Create dialog */}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
-              <UserPlus className="h-4 w-4" />
-              Neuer Mitarbeiter
-            </Button>
+            <Button className="gap-2"><UserPlus className="h-4 w-4" />Neuer Mitarbeiter</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Mitarbeiter hinzufügen</DialogTitle>
-              <DialogDescription>
-                Geben Sie die Basisdaten für den neuen Mitarbeiter ein.
-              </DialogDescription>
+              <DialogDescription>Geben Sie die Basisdaten für den neuen Mitarbeiter ein.</DialogDescription>
             </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="firstName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vorname</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Max" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="lastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nachname</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Mustermann" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>E-Mail (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="max@beispiel.ch" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="pensum"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pensum (%)</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="0" max="100" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="annualHours"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Jahressoll (Stunden)</FormLabel>
-                        <FormControl>
-                          <Input type="number" min="0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <DialogFooter className="mt-6">
-                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Abbrechen</Button>
-                  <Button type="submit" disabled={createMutation.isPending}>
-                    Speichern
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
+            <EmployeeForm
+              form={createForm}
+              onSubmit={onCreate}
+              onCancel={() => setCreateOpen(false)}
+              isPending={createMutation.isPending}
+              submitLabel="Erstellen"
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -231,9 +239,7 @@ export function Employees() {
               ) : (
                 employees?.map((emp) => (
                   <TableRow key={emp.id} className="group">
-                    <TableCell className="font-medium">
-                      {emp.firstName} {emp.lastName}
-                    </TableCell>
+                    <TableCell className="font-medium">{emp.firstName} {emp.lastName}</TableCell>
                     <TableCell className="text-muted-foreground">{emp.email || "-"}</TableCell>
                     <TableCell className="text-right">{emp.pensum}%</TableCell>
                     <TableCell className="text-right">{emp.annualHours}</TableCell>
@@ -247,6 +253,10 @@ export function Employees() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Aktionen</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openEdit(emp)} className="cursor-pointer">
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Bearbeiten
+                          </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link href={`/mitarbeiter/${emp.id}`} className="cursor-pointer flex w-full items-center">
                               <CalendarRange className="mr-2 h-4 w-4" />
@@ -254,7 +264,7 @@ export function Employees() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => setDeleteId(emp.id)}
                             className="text-destructive focus:text-destructive cursor-pointer"
                           >
@@ -272,6 +282,24 @@ export function Employees() {
         )}
       </Card>
 
+      {/* Edit dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Mitarbeiter bearbeiten</DialogTitle>
+            <DialogDescription>Änderungen werden sofort gespeichert.</DialogDescription>
+          </DialogHeader>
+          <EmployeeForm
+            form={editForm}
+            onSubmit={onEdit}
+            onCancel={() => setEditTarget(null)}
+            isPending={updateMutation.isPending}
+            submitLabel="Speichern"
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

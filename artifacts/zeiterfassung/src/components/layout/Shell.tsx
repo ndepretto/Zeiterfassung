@@ -1,13 +1,15 @@
 import { Link, useLocation } from "wouter";
-import { Clock, LayoutDashboard, Users, FileText } from "lucide-react";
+import { Clock, LayoutDashboard, Users, FileText, LogOut } from "lucide-react";
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface ShellProps {
   children: ReactNode;
+  onLogout?: () => void;
 }
 
-export function Shell({ children }: ShellProps) {
+export function Shell({ children, onLogout }: ShellProps) {
   const [location] = useLocation();
 
   const navigation = [
@@ -27,7 +29,7 @@ export function Shell({ children }: ShellProps) {
           </div>
           Zeiterfassung
         </div>
-        
+
         <nav className="flex-1 px-4 py-6 space-y-1">
           {navigation.map((item) => {
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -48,6 +50,20 @@ export function Shell({ children }: ShellProps) {
             );
           })}
         </nav>
+
+        {onLogout && (
+          <div className="px-4 pb-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onLogout}
+              className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+            >
+              <LogOut className="w-4 h-4" />
+              Abmelden
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Mobile nav header */}
@@ -56,8 +72,13 @@ export function Shell({ children }: ShellProps) {
           <Clock className="w-5 h-5 text-primary" />
           Zeiterfassung
         </div>
+        {onLogout && (
+          <Button variant="ghost" size="sm" onClick={onLogout} className="text-sidebar-foreground/70 gap-2">
+            <LogOut className="w-4 h-4" />
+          </Button>
+        )}
       </div>
-      
+
       {/* Mobile bottom nav */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 border-t bg-card z-50 flex items-center justify-around px-2">
         {navigation.map((item) => {
