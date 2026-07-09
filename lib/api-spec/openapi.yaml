@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Zeiterfassung API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: employees
+    description: Employee management
+  - name: time-entries
+    description: Time entry management
+  - name: reports
+    description: Reporting and summaries
 paths:
   /healthz:
     get:
@@ -24,6 +30,330 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List all employees
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create a new employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /time-entries:
+    get:
+      operationId: listTimeEntries
+      tags: [time-entries]
+      summary: List time entries, optionally filtered by employee and/or date range
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+    post:
+      operationId: createTimeEntry
+      tags: [time-entries]
+      summary: Create a new time entry (a full day with multiple come/go pairs)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntryInput"
+      responses:
+        "201":
+          description: Created time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /time-entries/{id}:
+    get:
+      operationId: getTimeEntry
+      tags: [time-entries]
+      summary: Get time entry by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateTimeEntry
+      tags: [time-entries]
+      summary: Update a time entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntryUpdate"
+      responses:
+        "200":
+          description: Updated time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteTimeEntry
+      tags: [time-entries]
+      summary: Delete a time entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reports/monthly:
+    get:
+      operationId: getMonthlyReport
+      tags: [reports]
+      summary: Get monthly hours report for all employees
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Monthly report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReport"
+
+  /reports/employee-monthly:
+    get:
+      operationId: getEmployeeReport
+      tags: [reports]
+      summary: Get detailed monthly report for one employee (by employeeId query param)
+      parameters:
+        - name: employeeId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee monthly report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeMonthlyReport"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reports/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [reports]
+      summary: Dashboard summary - total hours this month per employee, year progress
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +364,256 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Employee:
+      type: object
+      required: [id, firstName, lastName, pensum, annualHours, createdAt]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: ["string", "null"]
+        pensum:
+          type: number
+          description: "Work percentage 0-100 (e.g. 100 = full time, 80 = 80%)"
+        annualHours:
+          type: number
+          description: "Target annual working hours"
+        createdAt:
+          type: string
+          format: date-time
+
+    EmployeeInput:
+      type: object
+      required: [firstName, lastName, pensum, annualHours]
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        pensum:
+          type: number
+          minimum: 0
+          maximum: 100
+        annualHours:
+          type: number
+          minimum: 0
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        pensum:
+          type: number
+          minimum: 0
+          maximum: 100
+        annualHours:
+          type: number
+          minimum: 0
+
+    TimeInterval:
+      type: object
+      required: [comeTime, goTime]
+      properties:
+        comeTime:
+          type: string
+          description: "HH:MM format e.g. 08:00"
+        goTime:
+          type: string
+          description: "HH:MM format e.g. 12:00"
+
+    TimeEntry:
+      type: object
+      required: [id, employeeId, date, intervals, totalMinutes, createdAt]
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        date:
+          type: string
+          format: date
+          description: "YYYY-MM-DD"
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeInterval"
+        note:
+          type: ["string", "null"]
+        totalMinutes:
+          type: integer
+          description: "Total worked minutes for the day"
+        createdAt:
+          type: string
+          format: date-time
+
+    TimeEntryInput:
+      type: object
+      required: [employeeId, date, intervals]
+      properties:
+        employeeId:
+          type: integer
+        date:
+          type: string
+          format: date
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeInterval"
+          minItems: 1
+        note:
+          type: string
+
+    TimeEntryUpdate:
+      type: object
+      properties:
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeInterval"
+        note:
+          type: string
+
+    EmployeeMonthSummary:
+      type: object
+      required: [employeeId, firstName, lastName, pensum, annualHours, totalMinutes, targetMinutes, yearTotalMinutes, yearTargetMinutes]
+      properties:
+        employeeId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        pensum:
+          type: number
+        annualHours:
+          type: number
+        totalMinutes:
+          type: integer
+          description: "Total minutes worked this month"
+        targetMinutes:
+          type: integer
+          description: "Target minutes for this month based on pensum and annualHours"
+        differenceMinutes:
+          type: integer
+          description: "Difference: actual - target (positive = overtime, negative = deficit)"
+        yearTotalMinutes:
+          type: integer
+          description: "Total minutes worked year-to-date"
+        yearTargetMinutes:
+          type: integer
+          description: "Target minutes year-to-date"
+
+    MonthlyReport:
+      type: object
+      required: [year, month, employees]
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeMonthSummary"
+
+    DailyEntry:
+      type: object
+      required: [date, totalMinutes, intervals]
+      properties:
+        date:
+          type: string
+          format: date
+        totalMinutes:
+          type: integer
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeInterval"
+        note:
+          type: ["string", "null"]
+        timeEntryId:
+          type: ["integer", "null"]
+
+    EmployeeMonthlyReport:
+      type: object
+      required: [employee, year, month, days, totalMinutes, targetMinutes, differenceMinutes, yearTotalMinutes, yearTargetMinutes]
+      properties:
+        employee:
+          $ref: "#/components/schemas/Employee"
+        year:
+          type: integer
+        month:
+          type: integer
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyEntry"
+        totalMinutes:
+          type: integer
+        targetMinutes:
+          type: integer
+        differenceMinutes:
+          type: integer
+        yearTotalMinutes:
+          type: integer
+        yearTargetMinutes:
+          type: integer
+
+    EmployeeDashboardItem:
+      type: object
+      required: [employeeId, firstName, lastName, pensum, annualHours, monthMinutes, monthTargetMinutes, yearMinutes, yearTargetMinutes]
+      properties:
+        employeeId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        pensum:
+          type: number
+        annualHours:
+          type: number
+        monthMinutes:
+          type: integer
+        monthTargetMinutes:
+          type: integer
+        yearMinutes:
+          type: integer
+        yearTargetMinutes:
+          type: integer
+
+    DashboardSummary:
+      type: object
+      required: [year, month, employees]
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployeeDashboardItem"

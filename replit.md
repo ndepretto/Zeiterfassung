@@ -1,44 +1,58 @@
-# [Project name]
+# Zeiterfassung
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Eine Zeiterfassungs-App für mehrere Mitarbeiter mit Kommen/Gehen-Erfassung, Mitarbeiterverwaltung und detaillierten Monatsberichten.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run dev` — API Server starten (Port 8080)
+- `pnpm --filter @workspace/zeiterfassung run dev` — Frontend starten
+- `pnpm run typecheck` — vollständiger Typecheck über alle Pakete
+- `pnpm run build` — Typecheck + Build aller Pakete
+- `pnpm --filter @workspace/api-spec run codegen` — API Hooks und Zod-Schemas neu generieren
+- `pnpm --filter @workspace/db run push` — DB-Schema-Änderungen pushen (nur Dev)
+- Required env: `DATABASE_URL` — Postgres-Verbindungsstring
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite + Wouter (Routing) + TanStack Query
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Validierung: Zod (`zod/v4`), `drizzle-zod`
+- API-Codegen: Orval (aus OpenAPI-Spec)
+- Build: esbuild (CJS Bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — OpenAPI-Spec (Quelle der Wahrheit für alle API-Verträge)
+- `lib/db/src/schema/employees.ts` — Mitarbeiter-Tabelle
+- `lib/db/src/schema/timeEntries.ts` — Zeiteinträge-Tabelle (mit `intervals: TimeInterval[]` als JSON)
+- `artifacts/api-server/src/routes/` — Express-Route-Handler
+- `artifacts/zeiterfassung/src/` — React-Frontend
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Kommen/Gehen-Paare pro Tag werden als `intervals: [{comeTime, goTime}]` JSON-Array gespeichert (flexibel, keine feste Anzahl)
+- Uniqueness-Constraint auf `(employee_id, date)` in `time_entries` — ein Eintrag pro Mitarbeiter/Tag, POST macht Upsert
+- Monats-Soll-Stunden werden proportional zu Arbeitstagen berechnet (annualHours × pensum% × daysInMonth/daysInYear)
+- OpenAPI-Spec verwendet `/reports/employee-monthly` mit Query-Param `employeeId` statt Pfad-Parameter, um Orval-Namenkollisionen zu vermeiden
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard**: Übersicht aller Mitarbeiter — Monatsstunden vs. Soll, Jahresfortschritt
+- **Mitarbeiter**: Anlegen, bearbeiten, löschen; Pensum (%) und Jahresarbeitszeit hinterlegen
+- **Zeiterfassung**: Tageserfassung mit mehreren Kommen/Gehen-Paaren pro Mitarbeiter
+- **Berichte**: Monatsansicht mit Stunden pro Mitarbeiter, Soll-Ist-Vergleich, Differenz
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+_Benutzersprache: Deutsch_
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Orval generiert `zod.date()` (nicht `zod.coerce.date()`) für Query-Params mit `format: date`. HTTP-Query-Strings kommen als Strings an und schlagen die Zod-Validierung fehl. Lösung: Query-Params für Datumsfelder manuell parsen (siehe `parseListQuery` in `timeEntries.ts`).
+- Datum-zu-String-Konvertierung: `toDateString(date: Date)` nutzt `.getUTCFullYear()` etc., um Zeitzonenprobleme zu vermeiden.
+- OpenAPI-Body-Schema-Namen müssen Entity-basiert sein (z.B. `EmployeeInput`, nicht `CreateEmployeeBody`), sonst TS2308-Kollision.
 
 ## Pointers
 
